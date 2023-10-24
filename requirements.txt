@@ -1,5 +1,7 @@
-numpy==1.25.2
-PyWavelets==1.4.1
-tqdm
-pandas
 matplotlib
+numpy
+scikit_learn
+torch==2.1.0
+torchinfo
+tqdm
+PyWavelets

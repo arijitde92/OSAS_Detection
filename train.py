@@ -1,10 +1,10 @@
 import os
 import torch
 import numpy as np
-import torch.nn as nn
+import matplotlib.pyplot as plt
 from torch.nn import NLLLoss, BCELoss, BCEWithLogitsLoss
 from torch.optim import Adam, SGD
-import matplotlib.pyplot as plt
+from sklearn.metrics import confusion_matrix
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 from torchinfo import summary
@@ -16,7 +16,7 @@ DATA_FILE_NAME = 'osasud_numpy_processed.pkl'
 DATA_DIR = 'data'
 MODEL_SAVE_DIR = 'trained_models'
 OUTPUT_DIR = 'output'
-BATCH_SIZE = 128
+BATCH_SIZE = 256
 LR = 0.00002
 N_EPOCHS = 100
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -59,12 +59,14 @@ def train(model, loader, loss_function, optimizer):
     return train_loss, train_accuracy
 
 
-def test(loader, model, loss_function):
+def test(model, loader, loss_function):
     model.eval()
     pbar = tqdm(loader)
     running_loss = 0.0
     correct = 0
     processed = 0
+    predictions = []
+    targets = []
     for batch_idx, (data, target) in enumerate(pbar):
         data, target = data.to(DEVICE), target.to(DEVICE)
         y_pred = model(data)
@@ -72,29 +74,40 @@ def test(loader, model, loss_function):
         running_loss += loss.item()
 
         pred = y_pred.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
+        predictions += pred.detach().cpu().numpy()
+        targets += target.detach().cpu().numpy()
         correct += pred.eq(target.view_as(pred)).sum().item()
         processed += len(data)
-        pbar.set_description(
-            desc=f'Loss={running_loss} Batch_id={batch_idx} Accuracy={100 * correct / processed:0.2f}')
+        pbar.set_description(desc=f'Loss={running_loss} Batch_id={batch_idx} Accuracy={100 * correct / processed:0.2f}')
     test_loss = running_loss / len(loader.dataset)
     test_accuracy = 100 * correct / processed
+    conf_matrix = confusion_matrix(targets, predictions)
+    print(conf_matrix)
     return test_loss, test_accuracy
 
 
 if __name__ == '__main__':
     # classification: 0 = Binary, 1 = Multiclass
     x_train, y_train, x_test, y_test = load_data(DATA_FILE_NAME, classification=0)
+    idx = np.random.choice(np.arange(len(x_train)), 100000, replace=False)
+    x_train_sample = x_train[idx]
+    y_train_sample = y_train[idx]
+
+    idx_test = np.random.choice(np.arange(len(x_test)), 50000, replace=False)
+    x_test_sample = x_train[idx]
+    y_test_sample = y_train[idx]
+
     if np.isnan(x_train).any() or np.isnan(x_test).any():
         print("NaN in input")
         exit(1)
-    train_dataset = OSASUDDataset(x_train, y_train)
+    train_dataset = OSASUDDataset(x_train_sample, y_train_sample)
     train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
 
-    test_dataset = OSASUDDataset(x_test, y_test)
+    test_dataset = OSASUDDataset(x_test_sample, y_test_sample)
     test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE)
-    num_classes = len(np.unique(y_train))
+    num_classes = len(np.unique(y_train_sample))
     print("Number of classes:", num_classes)
-    model = ConvNet(x_train.shape[1:], num_classes=num_classes)
+    model = ConvNet(x_train_sample.shape, num_classes=num_classes)
     model.to(DEVICE)
     if num_classes > 2:
         # Multi Class classification
@@ -106,7 +119,7 @@ if __name__ == '__main__':
         print("Loss Function: BCE Loss")
 
     optimizer = Adam(model.parameters(), lr=LR)
-    input_size = (BATCH_SIZE, 4, 80)
+    input_size = (BATCH_SIZE, 3, 1)
     summary(model, input_size=input_size)
     epoch_train_acc = []
     epoch_train_loss = []
