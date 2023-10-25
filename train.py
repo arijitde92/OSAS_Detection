@@ -16,7 +16,7 @@ DATA_FILE_NAME = 'osasud_numpy_processed.pkl'
 DATA_DIR = 'data'
 MODEL_SAVE_DIR = 'trained_models'
 OUTPUT_DIR = 'output'
-BATCH_SIZE = 256
+BATCH_SIZE = 2048
 LR = 0.00002
 N_EPOCHS = 100
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -74,8 +74,10 @@ def test(model, loader, loss_function):
         running_loss += loss.item()
 
         pred = y_pred.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
-        predictions += pred.detach().cpu().numpy()
-        targets += target.detach().cpu().numpy()
+        pred_numpy = pred.detach().cpu().numpy()
+        predictions += pred_numpy.tolist()
+        target_numpy = target.detach().cpu().numpy()
+        targets += target_numpy.tolist()
         correct += pred.eq(target.view_as(pred)).sum().item()
         processed += len(data)
         pbar.set_description(desc=f'Loss={running_loss} Batch_id={batch_idx} Accuracy={100 * correct / processed:0.2f}')
@@ -94,8 +96,8 @@ if __name__ == '__main__':
     y_train_sample = y_train[idx]
 
     idx_test = np.random.choice(np.arange(len(x_test)), 50000, replace=False)
-    x_test_sample = x_train[idx]
-    y_test_sample = y_train[idx]
+    x_test_sample = x_test[idx_test]
+    y_test_sample = y_test[idx_test]
 
     if np.isnan(x_train).any() or np.isnan(x_test).any():
         print("NaN in input")
@@ -107,7 +109,9 @@ if __name__ == '__main__':
     test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE)
     num_classes = len(np.unique(y_train_sample))
     print("Number of classes:", num_classes)
-    model = ConvNet(x_train_sample.shape, num_classes=num_classes)
+    print(train_dataset.x.shape)
+    model = ConvNet((train_dataset.x.shape[0], train_dataset.x.shape[2], train_dataset.x.shape[1]),
+                    num_classes=num_classes)
     model.to(DEVICE)
     if num_classes > 2:
         # Multi Class classification
@@ -119,7 +123,7 @@ if __name__ == '__main__':
         print("Loss Function: BCE Loss")
 
     optimizer = Adam(model.parameters(), lr=LR)
-    input_size = (BATCH_SIZE, 3, 1)
+    input_size = (BATCH_SIZE, train_dataset.x.shape[2], train_dataset.x.shape[1])
     summary(model, input_size=input_size)
     epoch_train_acc = []
     epoch_train_loss = []
@@ -131,6 +135,7 @@ if __name__ == '__main__':
         train_loss, train_acc = train(model, train_loader, loss_function, optimizer)
         test_loss, test_acc = test(model, test_loader, loss_function)
         if test_loss < min_val_loss:
+            min_val_loss = test_loss
             print("Validation Loss decreased, saving model")
             torch.save(model.state_dict(), os.path.join(MODEL_SAVE_DIR, 'best_model.pth'))
         epoch_train_loss.append(train_loss)

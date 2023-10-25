@@ -25,16 +25,19 @@ def augment(features, labels):
     :return:
     """
     classes, counts = np.unique(labels, return_counts=True)
+    original_feature_shape = (-1,) + features.shape[1:]
+    num_samples = features.shape[0]
+
     print("Before Resampling")
     for idx, cls in enumerate(classes):
         print("Class:", cls, " Count:", counts[idx])
     over_sampler = SMOTE(k_neighbors=10, sampling_strategy='not majority')
-    x_aug, y_aug = over_sampler.fit_resample(features, labels)
+    x_aug, y_aug = over_sampler.fit_resample(features.reshape(num_samples, -1), labels)
     print("After Resampling")
     classes, counts = np.unique(y_aug, return_counts=True)
     for idx, cls in enumerate(classes):
         print("Class:", cls, " Count:", counts[idx])
-    x_aug = x_aug.reshape(-1, 80, 3)
+    x_aug = x_aug.reshape(original_feature_shape)
     return x_aug, y_aug
 
 
