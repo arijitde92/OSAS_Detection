@@ -1,7 +1,9 @@
 matplotlib
 numpy
+pandas=1.5.3
 scikit_learn
 torch==2.1.0
 torchinfo
 tqdm
 PyWavelets
+imbalanced-learn

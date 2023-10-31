@@ -12,7 +12,7 @@ from data_utils import load_data
 from model import ConvNet
 from Dataset import OSASUDDataset
 
-DATA_FILE_NAME = 'osasud_numpy_processed.pkl'
+DATA_FILE_NAME = 'osasud_numpy_dict.pkl'
 DATA_DIR = 'data'
 MODEL_SAVE_DIR = 'trained_models'
 OUTPUT_DIR = 'output'
@@ -23,7 +23,7 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 def plot(train_losses, train_acc, test_losses, test_acc, label):
-    fig, axs = plt.subplots(1, 2, figsize=(20, 8))
+    fig, axs = plt.subplots(1, 2, figsize=(20, 10))
     axs[0].plot(test_losses, label='val loss')
     axs[0].plot(train_losses, label='train loss')
     axs[0].set_title("Loss")
@@ -91,23 +91,25 @@ def test(model, loader, loss_function):
 if __name__ == '__main__':
     # classification: 0 = Binary, 1 = Multiclass
     x_train, y_train, x_test, y_test = load_data(DATA_FILE_NAME, classification=0)
-    idx = np.random.choice(np.arange(len(x_train)), 100000, replace=False)
-    x_train_sample = x_train[idx]
-    y_train_sample = y_train[idx]
-
-    idx_test = np.random.choice(np.arange(len(x_test)), 50000, replace=False)
-    x_test_sample = x_test[idx_test]
-    y_test_sample = y_test[idx_test]
+    # idx = np.random.choice(np.arange(len(x_train)), 100000, replace=False)
+    # x_train_sample = x_train[idx]
+    # y_train_sample = y_train[idx]
+    #
+    # idx_test = np.random.choice(np.arange(len(x_test)), 20000, replace=False)
+    # x_test_sample = x_test[idx_test]
+    # y_test_sample = y_test[idx_test]
 
     if np.isnan(x_train).any() or np.isnan(x_test).any():
         print("NaN in input")
         exit(1)
-    train_dataset = OSASUDDataset(x_train_sample, y_train_sample)
+    # train_dataset = OSASUDDataset(x_train_sample, y_train_sample)
+    train_dataset = OSASUDDataset(x_train, y_train)
     train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
 
-    test_dataset = OSASUDDataset(x_test_sample, y_test_sample)
+    # test_dataset = OSASUDDataset(x_test_sample, y_test_sample)
+    test_dataset = OSASUDDataset(x_test, y_test)
     test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE)
-    num_classes = len(np.unique(y_train_sample))
+    num_classes = len(np.unique(y_train))
     print("Number of classes:", num_classes)
     print(train_dataset.x.shape)
     model = ConvNet((train_dataset.x.shape[0], train_dataset.x.shape[2], train_dataset.x.shape[1]),
@@ -122,7 +124,8 @@ if __name__ == '__main__':
         loss_function = BCELoss()
         print("Loss Function: BCE Loss")
 
-    optimizer = Adam(model.parameters(), lr=LR)
+    # optimizer = Adam(model.parameters(), lr=LR)
+    optimizer = SGD(model.parameters(), lr=LR)
     input_size = (BATCH_SIZE, train_dataset.x.shape[2], train_dataset.x.shape[1])
     summary(model, input_size=input_size)
     epoch_train_acc = []

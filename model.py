@@ -25,7 +25,7 @@ class ConvNet(nn.Module):
         if self.num_classes == 2:
             self.num_classes = 1
         self.fcn = nn.Sequential(
-            nn.Linear(in_features=512, out_features=32),
+            nn.Linear(in_features=64, out_features=32),
             nn.ReLU(),
             nn.Linear(in_features=32, out_features=self.num_classes)
         )
@@ -52,6 +52,6 @@ class ConvNet(nn.Module):
 
 
 if __name__ == '__main__':
-    input_size = (256, 3, 80)  # Batch size = 256
-    model = ConvNet((10000, 3, 80))
+    input_size = (256, 5, 10)  # Batch size = 256
+    model = ConvNet((10000, 5, 10))
     summary(model, input_size)
