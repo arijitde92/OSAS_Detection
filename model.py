@@ -96,8 +96,10 @@ class ConvNetMultiHead(nn.Module):
         self.fcn = nn.Sequential(
             nn.Linear(in_features=2880, out_features=720),
             nn.ReLU(),
+            nn.Dropout(dropout),
             nn.Linear(in_features=720, out_features=180),
             nn.ReLU(),
+            nn.Dropout(dropout),
             nn.Linear(in_features=180, out_features=32),
             nn.ReLU(),
             nn.Linear(in_features=32, out_features=self.num_classes)
@@ -115,13 +117,13 @@ class ConvNetMultiHead(nn.Module):
         x1 = x1.reshape(x1.size(0), -1)
         x2 = x2.reshape(x2.size(0), -1)
         x3 = x3.reshape(x3.size(0), -1)
-        print("Shape after flattening:")
-        print("X1: ", x1.shape)
-        print("X2: ", x2.shape)
-        print("X3: ", x3.shape)
+        # print("Shape after flattening:")
+        # print("X1: ", x1.shape)
+        # print("X2: ", x2.shape)
+        # print("X3: ", x3.shape)
 
         conc_x = torch.concatenate((x1, x2, x3), dim=1)
-        print("Concatenated Shape:", conc_x.shape)
+        # print("Concatenated Shape:", conc_x.shape)
         x = self.fcn(conc_x)
         # print("Shape after FCN:")
         # print(x.shape)

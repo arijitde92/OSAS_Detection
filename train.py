@@ -16,17 +16,18 @@ from torchinfo import summary
 from data_utils import load_data
 from scipy.interpolate import splev, splrep
 import pickle
-from model import ConvNet
+from model import ConvNet, ConvNetMultiHead
 from Dataset import OSASUDDataset, ApneaECGDataset
 
 DATA_FILE_NAME = ['normal_segments_sub.pkl', 'disease_segments_sub.pkl']
 DATA_DIR = 'data'
 MODEL_SAVE_DIR = 'trained_models'
 OUTPUT_DIR = 'output'
-BATCH_SIZE = 1024
-LR = 0.00002
+BATCH_SIZE = 256
+LR = 0.0003
 N_EPOCHS = 200
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+CLASSIFICATION = 0
 ir = 3  # interpolate interval
 before = 2
 after = 2
@@ -42,12 +43,13 @@ def plot(train_losses, train_acc, test_losses, test_acc, label):
     axs[0].set_title("Loss")
     axs[1].plot(test_acc, label='val accuracy')
     axs[1].plot(train_acc, label='train accuracy')
-    axs[1].set_title(label)
+    axs[1].set_title("Accuracy")
+    plt.legend()
     plt.savefig(f'{label}.png')
     plt.show()
 
 
-def train(model, loader, loss_function, optimizer):
+def train(model, loader, loss_function, optimizer, scheduler):
     model.train()
     pbar = tqdm(loader)
     running_loss = 0.0
@@ -61,7 +63,8 @@ def train(model, loader, loss_function, optimizer):
         running_loss += loss.item()
         loss.backward()
         optimizer.step()
-        y_pred_proba = softmax(y_pred)
+        scheduler.step()
+        y_pred_proba = softmax(y_pred, dim=1)
         pred = y_pred_proba.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
         targets = torch.argmax(target, dim=1, keepdim=True)
         # correct += pred.eq(target.view_as(pred)).sum().item()
@@ -89,7 +92,7 @@ def test(model, loader, loss_function):
         running_loss += loss.item()
 
         # pred = y_pred.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
-        y_pred_proba = softmax(y_pred)
+        y_pred_proba = softmax(y_pred, dim=1)
         pred = y_pred_proba.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
         targets = torch.argmax(target, dim=1, keepdim=True)
         pred_numpy = pred.detach().cpu().numpy()
@@ -100,7 +103,7 @@ def test(model, loader, loss_function):
         correct += (pred == targets).sum().item()
         processed += len(data)
         pbar.set_description(desc=f'Loss={running_loss} Batch_id={batch_idx} Accuracy={100 * correct / processed:0.2f}')
-    test_loss = running_loss / len(loader.dataset)
+    test_loss = running_loss / processed
     test_accuracy = 100 * correct / processed
     conf_matrix = confusion_matrix(targets_list, predictions)
     print(conf_matrix)
@@ -142,7 +145,7 @@ def load_data_ecg():
 
 if __name__ == '__main__':
     # classification: 0 = Binary, 1 = Multiclass
-    x_train, y_train, x_test, y_test = load_data(DATA_FILE_NAME, classification=0)
+    x_train, y_train, x_test, y_test = load_data(DATA_FILE_NAME, classification=CLASSIFICATION)
     # x_train, y_train, groups_train, x_test, y_test, groups_test = load_data_ecg()
     # ohe = OneHotEncoder(sparse_output=False)
     # y_train_categorical = ohe.fit_transform(y_train.reshape(-1, 1))
@@ -173,11 +176,11 @@ if __name__ == '__main__':
     # test_dataset = ApneaECGDataset(x_test, y_test_categorical)
     test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE)
     # num_classes = len(np.unique(y_train))
-    num_classes = 2
+    num_classes = 2 if CLASSIFICATION == 0 else 5
     print("Number of classes:", num_classes)
     sample_data, sample_target = next(iter(train_loader))
     print(sample_data.size())
-    model = ConvNet((sample_data.size()[0], sample_data.size()[1], sample_data.size()[2]), num_classes=num_classes)
+    model = ConvNetMultiHead((sample_data.size()[0], sample_data.size()[1], sample_data.size()[2]), num_classes=num_classes)
     model.to(DEVICE)
     if num_classes > 2:
         # Multi Class classification
@@ -199,8 +202,8 @@ if __name__ == '__main__':
     epoch_valid_loss = []
     min_val_loss = 99999
     for epoch in range(N_EPOCHS):
-        print("EPOCH: %s" % epoch)
-        train_loss, train_acc = train(model, train_loader, loss_function, optimizer)
+        print("\nEPOCH: %s" % epoch)
+        train_loss, train_acc = train(model, train_loader, loss_function, optimizer, scheduler)
         test_loss, test_acc = test(model, test_loader, loss_function)
         if test_loss < min_val_loss:
             min_val_loss = test_loss
