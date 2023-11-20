@@ -7,11 +7,11 @@ import os
 
 from numpy import ndarray
 from tqdm import tqdm
-from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 from sklearn.model_selection import train_test_split
 
 DATA_DIR = 'data'
-FILE_NAME = 'osasud_numpy_dict.pkl'
+FILE_NAMES = ['normal_segments_sub.pkl', 'disease_segments_sub.pkl']
 
 
 def remove_nan(features, labels):
@@ -46,24 +46,56 @@ def augment(features, labels):
     return x_aug, y_aug
 
 
-def load_data(file_name, classification=0, test_split=0.33):
-    with open(os.path.join(DATA_DIR, file_name), 'rb') as f:  # read preprocessing result
-        data_dict = pickle.load(f)
-    derived_data = data_dict['derived']
-    waveform_data = data_dict['waveform']
-    psg_data = data_dict['psg']
-    binary_labels = data_dict['binary_labels']
-    multi_class_labels = data_dict['multi_label']
+def load_data(file_names, classification=0, test_split=0.33):
+    with open(os.path.join(DATA_DIR, file_names[0]), 'rb') as f:  # read preprocessing result
+        if 'normal' in file_names[0]:
+            normal_data_dict = pickle.load(f)
+        else:
+            disease_data_dict = pickle.load(f)
+    with open(os.path.join(DATA_DIR, file_names[1]), 'rb') as f:  # read preprocessing result
+        if 'normal' in file_names[1]:
+            normal_data_dict = pickle.load(f)
+        else:
+            disease_data_dict = pickle.load(f)
+    # normal_derived_data = normal_data_dict['derived']
+    # normal_waveform_data = normal_data_dict['waveform']
+    normal_psg_data = normal_data_dict['psg']
+    normal_labels = normal_data_dict['label']
+
+    # disease_derived_data = disease_data_dict['derived']
+    # disease_waveform_data = disease_data_dict['waveform']
+    disease_psg_data = disease_data_dict['psg']
+    disease_binary_labels = disease_data_dict['binary_label']
+    disease_multi_labels = disease_data_dict['multi_label']
 
     # x = np.reshape(waveform_data, (-1, 80, 4))
     # x = np.average(x, axis=1)  # Reducing dimension by taking average of the 80 data points
 
+    # Combine disease and normal data and then shuffle them
+    # derived_data = np.concatenate((normal_derived_data, disease_derived_data), axis=0)
+    # waveform_data = np.concatenate((normal_waveform_data, disease_waveform_data), axis=0)
+    psg_data = np.concatenate((normal_psg_data, disease_psg_data), axis=0)
+    binary_labels = np.concatenate((normal_labels, disease_binary_labels), axis=0)
+    multi_labels = np.concatenate((normal_labels, disease_multi_labels), axis=0)
+
+    # Shuffle data
+    p = np.random.permutation(len(psg_data))
+    # derived_data = derived_data[p]
+    # waveform_data = waveform_data[p]
+    psg_data = psg_data[p]
+    binary_labels = binary_labels[p]
+    multi_labels = multi_labels[p]
+
     # Choosing PSG data
     X = psg_data
     if classification == 1:
-        y = multi_class_labels
+        # le = LabelEncoder()
+        # y = le.fit_transform(multi_labels)
+        ohe = OneHotEncoder(sparse_output=False, handle_unknown='ignore')
+        y = ohe.fit_transform(np.reshape(multi_labels, (-1, 1)))
     else:  # Choosing binary labels for binary classification
-        y = binary_labels
+        ohe = OneHotEncoder(sparse_output=False, handle_unknown='ignore')
+        y = ohe.fit_transform(np.reshape(binary_labels, (-1, 1)))
     # le = LabelEncoder()
     # y = le.fit_transform(y)
     # x_augmented, y_augmented = augment(*remove_nan(x, y))
@@ -196,5 +228,5 @@ def convert_to_numpy_dataset(map: dict, window_seconds=60) -> dict[str, ndarray]
 
 
 if __name__ == '__main__':
-    # x_train, y_train, x_test, y_test = load_data(FILE_NAME)
-    create_patient_map_features('data/dataset_OSAS.pickle')
+    x_train, y_train, x_test, y_test = load_data(FILE_NAMES)
+    # create_patient_map_features('data/dataset_OSAS.pickle')
