@@ -25,9 +25,9 @@ MODEL_SAVE_DIR = 'trained_models'
 OUTPUT_DIR = 'output'
 BATCH_SIZE = 256
 LR = 0.0003
-N_EPOCHS = 200
+N_EPOCHS = 250
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-CLASSIFICATION = 0
+CLASSIFICATION = 1
 ir = 3  # interpolate interval
 before = 2
 after = 2
@@ -180,8 +180,10 @@ if __name__ == '__main__':
     print("Number of classes:", num_classes)
     sample_data, sample_target = next(iter(train_loader))
     print(sample_data.size())
-    model = ConvNetMultiHead((sample_data.size()[0], sample_data.size()[1], sample_data.size()[2]), num_classes=num_classes)
-    model.to(DEVICE)
+    model1 = ConvNet((sample_data.size()[0], sample_data.size()[1], sample_data.size()[2]), num_classes=num_classes)
+    model2 = ConvNetMultiHead((sample_data.size()[0], sample_data.size()[1], sample_data.size()[2]), num_classes=num_classes)
+    model1.to(DEVICE)
+    model2.to(DEVICE)
     if num_classes > 2:
         # Multi Class classification
         loss_function = CrossEntropyLoss()
@@ -191,8 +193,11 @@ if __name__ == '__main__':
         loss_function = CrossEntropyLoss()
         print("Loss Function: Cross Entropy Loss")
 
-    optimizer = Adam(model.parameters(), lr=LR)
-    scheduler = MultiStepLR(optimizer, milestones=[70, 120, 170], gamma=0.1)
+    optimizer1 = Adam(model1.parameters(), lr=LR)
+    scheduler1 = MultiStepLR(optimizer1, milestones=[70, 120, 170], gamma=0.1)
+
+    optimizer2 = Adam(model2.parameters(), lr=LR)
+    scheduler2 = MultiStepLR(optimizer2, milestones=[70, 120, 170], gamma=0.1)
     # optimizer = SGD(model.parameters(), lr=LR)
     input_size = (sample_data.size()[0], sample_data.size()[1], sample_data.size()[2])
     # summary(model, input_size=input_size)
@@ -203,12 +208,27 @@ if __name__ == '__main__':
     min_val_loss = 99999
     for epoch in range(N_EPOCHS):
         print("\nEPOCH: %s" % epoch)
-        train_loss, train_acc = train(model, train_loader, loss_function, optimizer, scheduler)
-        test_loss, test_acc = test(model, test_loader, loss_function)
+        train_loss, train_acc = train(model1, train_loader, loss_function, optimizer1, scheduler1)
+        test_loss, test_acc = test(model1, test_loader, loss_function)
         if test_loss < min_val_loss:
             min_val_loss = test_loss
             print("Validation Loss decreased, saving model")
-            torch.save(model.state_dict(), os.path.join(MODEL_SAVE_DIR, 'best_model.pth'))
+            torch.save(model1.state_dict(), os.path.join(MODEL_SAVE_DIR, 'best_model_multi_convnet.pth'))
+        epoch_train_loss.append(train_loss)
+        epoch_train_acc.append(train_acc)
+        epoch_valid_acc.append(test_acc)
+        epoch_valid_loss.append(test_loss)
+    plot(epoch_train_loss, epoch_train_acc, epoch_valid_loss, epoch_valid_acc,
+         f'Loss & Accuracy')
+
+    for epoch in range(N_EPOCHS):
+        print("\nEPOCH: %s" % epoch)
+        train_loss, train_acc = train(model2, train_loader, loss_function, optimizer2, scheduler2)
+        test_loss, test_acc = test(model2, test_loader, loss_function)
+        if test_loss < min_val_loss:
+            min_val_loss = test_loss
+            print("Validation Loss decreased, saving model")
+            torch.save(model2.state_dict(), os.path.join(MODEL_SAVE_DIR, 'best_model_multi_multi-head-conv.pth'))
         epoch_train_loss.append(train_loss)
         epoch_train_acc.append(train_acc)
         epoch_valid_acc.append(test_acc)
